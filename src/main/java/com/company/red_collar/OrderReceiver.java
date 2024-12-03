@@ -25,7 +25,7 @@ public class OrderReceiver {
         this.writeApiBlocking = writeApiBlocking;
     }
 
-    @RabbitListener(queues = "order_queue")
+    @RabbitListener(queues = "order_queue", concurrency = "5-20")
     public void receiveOrder(String orderMessage) {
         try {
             // Deserialize the order JSON

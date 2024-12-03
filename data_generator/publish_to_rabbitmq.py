@@ -1,9 +1,12 @@
 import pika
+import time
 import zlib
 import json
+import requests
 import _pickle as pickle
 import logging
 from mock_data import generate_order
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class RabbitMQOrderPublisher:
     def __init__(self, rabbitmq_host, exchange, routing_key):
@@ -50,19 +53,62 @@ class RabbitMQOrderPublisher:
             self.connection.close()
             self.logger.info("RabbitMQ connection closed")
 
+# Configuration, current running on localhost
+rabbitmq_host = "localhost"
+exchange = "clothing_orders"
+routing_key = "order_queue"
+
+#Initialize publisher
+publisher = RabbitMQOrderPublisher(rabbitmq_host, exchange, routing_key)
+
+def send_order(order, retries=1):
+    """Publish a single order to the rabbitmq"""
+    try:
+        for attempt in range(retries):
+            try:
+                local_publisher = RabbitMQOrderPublisher(rabbitmq_host, exchange, routing_key)
+                local_publisher.publish_order(order)
+                # TODO: sent to influxDB
+                # local_publisher.close()
+                return
+            except Exception as e:
+                time.sleep(2 ** attempt)
+                publisher.logger.error(f"Error sending the order: {e}")
+    except Exception as e:
+        publisher.logger.error(f"Error calling the calling object: {e}")
+    
+
+# Concurrently generate and send orders
+def send_orders_concurrently(num_orders):
+    """Concurrently send multiple orders to the RabbitMQ"""
+
+    orders = [generate_order() for _ in range(num_orders)]
+    
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = []
+        for order in orders:
+            try:
+                futures.append(executor.submit(send_order, order))
+            except Exception as e:
+                publisher.logger.error(f"Worder failed to send order: {e}")
+
+        # futures = [executor.submit(send_order, order) for order in orders]
+        for future in as_completed(futures):
+            try:
+                future.result()  # Ensure that we capture any exceptions raised during execution
+            except Exception as e:
+                publisher.logger.error(f"Errors in worker thread: {e}")
+
 if __name__ == "__main__":
-    # Configuration, current running on localhost
-    rabbitmq_host = "localhost"
-    exchange = "clothing_orders"
-    routing_key = "order_queue"
-
-    #Initialize publisher
-    publisher = RabbitMQOrderPublisher(rabbitmq_host, exchange, routing_key)
-
     # Generate and publish data
-    for _ in range(1):
-        order = generate_order()
-        publisher.publish_order(order)
-
-    # Close the connection when finish publishing
-    publisher.close()
+    try:
+        send_orders_concurrently(2)
+        
+        # Nonconcurrent sending 
+        # orders = [generate_order() for _ in range(2)]
+        # for order in orders:
+        #     send_order(order)
+    except Exception as e:
+        publisher.logger.error(f"Error in main: {e}")
+    finally:
+        publisher.close()

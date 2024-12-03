@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.company.red_collar.RedCollarApplicationTests
 -------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.674 s - in com.company.red_collar.RedCollarApplicationTests
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.352 s - in com.company.red_collar.RedCollarApplicationTests
